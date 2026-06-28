@@ -1,0 +1,48 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-screen:      #000000;
+  --bg-hud-center:  #00CCBB;
+  --bg-timer:       #555555;
+  --accent-primary: #CC3300;
+  --accent-warm:    #FF6600;
+  --accent-gold:    #FFB800;
+  --text-primary:   #FFFFFF;
+  --text-muted:     #888888;
+  --player1:        #3399FF;
+  --player2:        #FF4444;
+  --player1-light:  #66BBFF;
+  --cpu-teal:       #44DDCC;
+}
+
+@layer base {
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace; }
+  canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #334155 transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar { width: 4px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+
+  .font-pixel { font-family: 'Press Start 2P', 'Courier New', monospace; }
+
+  /* Hard pixel border — no radius, sharp corners always */
+  .pixel-border { border: 3px solid var(--accent-primary); }
+  .pixel-border-p1 { border: 3px solid var(--player1); }
+  .pixel-border-p2 { border: 3px solid var(--player2); }
+
+  .pixel-art {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+}
+
