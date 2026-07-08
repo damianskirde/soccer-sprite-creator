@@ -365,23 +365,23 @@ export default function InGameScreen({ session, updateSession, onNavigate }: Pro
     function homeFormation() {
       return [
         {id:'home_gk',role:'gk',wx:4, wy:32},
-        {id:'home_lb',role:'lb',wx:18,wy:18},
-        {id:'home_rb',role:'rb',wx:18,wy:46},
-        {id:'home_lm',role:'lm',wx:35,wy:22},
-        {id:'home_cm',role:'cm',wx:38,wy:32},
-        {id:'home_rm',role:'rm',wx:35,wy:42},
-        {id:'home_cf',role:'cf',wx:48,wy:32},  // behind ball (toward own goal)
+        {id:'home_lb',role:'lb',wx:30,wy:13},
+        {id:'home_rb',role:'rb',wx:30,wy:52},
+        {id:'home_lm',role:'lm',wx:44,wy:18},
+        {id:'home_cm',role:'cm',wx:44,wy:32},
+        {id:'home_rm',role:'rm',wx:44,wy:47},
+        {id:'home_cf',role:'cf',wx:54,wy:32},
       ]
     }
     function awayFormation() {
       return [
         {id:'away_gk',role:'gk',wx:96,wy:32},
-        {id:'away_lb',role:'lb',wx:82,wy:46},
-        {id:'away_rb',role:'rb',wx:82,wy:18},
-        {id:'away_lm',role:'lm',wx:65,wy:42},
-        {id:'away_cm',role:'cm',wx:62,wy:32},
-        {id:'away_rm',role:'rm',wx:65,wy:22},
-        {id:'away_cf',role:'cf',wx:55,wy:32},  // outside center circle, own half
+        {id:'away_lb',role:'lb',wx:72,wy:14},
+        {id:'away_rb',role:'rb',wx:72,wy:51},
+        {id:'away_lm',role:'lm',wx:65,wy:20},
+        {id:'away_cm',role:'cm',wx:65,wy:32},
+        {id:'away_rm',role:'rm',wx:65,wy:46},
+        {id:'away_cf',role:'cf',wx:60,wy:32},
       ]
     }
     function initPlayers() {
@@ -399,7 +399,9 @@ export default function InGameScreen({ session, updateSession, onNavigate }: Pro
           sprintTimer:0, _facingLeft:true,
         })),
       ]
-      controlledId = 'home_cm'
+      const homeCF = getPlayer('home_cf')
+      if (homeCF) (homeCF as any)._kickoffFacingLeft = true
+      controlledId = 'home_cf'
     }
     function getPlayer(id: string) { return players.find(p => p.id === id) }
     function resetBall() {
@@ -418,11 +420,19 @@ export default function InGameScreen({ session, updateSession, onNavigate }: Pro
         swapHalves()
         awayAttacksRight = true
         kickOffTeam = 'away'
-        // Second half: away kicks off, away now attacks right
-        // away_cf is now at swapped position (was 55, now 100-55=45 after swapHalves)
-        // move away_cf to behind ball on their attack direction (right): wx=48
-        const awayCF=getPlayer('away_cf'); if(awayCF){awayCF.wx=48;awayCF.wy=32}
-        const homeCF=getPlayer('home_cf'); if(homeCF){homeCF.wx=59;homeCF.wy=32}
+        // Second half: away kicks off attacking right — set full kickoff formation
+        const h2ko: Record<string,{wx:number,wy:number}> = {
+          away_lb:{wx:30,wy:13}, away_rb:{wx:30,wy:52},
+          away_lm:{wx:44,wy:18}, away_cm:{wx:44,wy:32}, away_rm:{wx:44,wy:47},
+          away_cf:{wx:54,wy:32},
+          home_lb:{wx:72,wy:14}, home_rb:{wx:72,wy:51},
+          home_lm:{wx:65,wy:20}, home_cm:{wx:65,wy:32}, home_rm:{wx:65,wy:46},
+          home_cf:{wx:60,wy:32},
+        }
+        for (const [id, pos] of Object.entries(h2ko)) {
+          const p=getPlayer(id); if(p){p.wx=pos.wx;p.wy=pos.wy;p.baseWx=pos.wx;p.baseWy=pos.wy}
+        }
+        const awayCF=getPlayer('away_cf'); if(awayCF)(awayCF as any)._kickoffFacingLeft=true
         deadBall = 'kickoff'; timerRunning = false
         walkOnDone = true
         for (const p of players) { p.hasBall=false; p.vx=0; p.vy=0; p.aiTimer=600 }
@@ -435,6 +445,7 @@ export default function InGameScreen({ session, updateSession, onNavigate }: Pro
         deadBall = 'kickoff'; timerRunning = false
         walkOnTimer = 0; walkOnDone = false
         controlledId = 'home_cf'
+        const h1CF=getPlayer('home_cf'); if(h1CF)(h1CF as any)._kickoffFacingLeft=true
         for (const p of players) {
           if (p.team==='home') p.wx = -10
           else p.wx = 110
@@ -452,8 +463,12 @@ export default function InGameScreen({ session, updateSession, onNavigate }: Pro
     function goalKickSetup(team: string) {
       deadBall='goal_kick'
       const gk = getPlayer(team==='home'?'home_gk':'away_gk')
-      if (team==='home') { ball.wx=6; ball.wy=32; if(gk){gk.wx=6;gk.wy=32}; deadBallTimer=1500 }
-      else              { ball.wx=94; ball.wy=32; if(gk){gk.wx=94;gk.wy=32}; deadBallTimer=1500 }
+      const homeGoalX = awayAttacksRight ? 3 : 97
+      const awayGoalX = awayAttacksRight ? 97 : 3
+      const gkX = team==='home' ? homeGoalX : awayGoalX
+      ball.wx=gkX; ball.wy=32
+      if (gk) { gk.wx=gkX; gk.wy=32 }
+      deadBallTimer=1500
       ball.vx=0; ball.vy=0; ball.isLoose=true; timerRunning=false
     }
     function throwInSetup(team: string, ex:number, ey:number) {
@@ -491,7 +506,7 @@ export default function InGameScreen({ session, updateSession, onNavigate }: Pro
       if (!ball.isLoose) return
       ball.wx += ball.vx; ball.wy += ball.vy
       const spd = Math.hypot(ball.vx, ball.vy)
-      if (spd > 0.01) ball.angle += spd * 3.5
+      if (spd > 0.01) ball.angle += spd * 0.08
       ball.vx *= 0.96; ball.vy *= 0.96
       if (Math.abs(ball.vx) < 0.05) ball.vx=0
       if (Math.abs(ball.vy) < 0.05) ball.vy=0
@@ -569,28 +584,46 @@ export default function InGameScreen({ session, updateSession, onNavigate }: Pro
       const dx=tx-p.wx,dy=ty-p.wy,d=Math.hypot(dx,dy)||1
       if (d>2) { p.vx=dx/d*spd; p.vy=dy/d*spd } else { p.vx*=0.7; p.vy*=0.7 }
     }
+    // Bug 2: world units — players must stay within this of their base position unless pressing
+    const MAX_MARK_FOLLOW = 14  // ~100px: max distance from base to chase mark
+    const MAX_SHAPE_DIST  = 8   // ~56px: non-pressers return to shape beyond this
     function homePlayerAI(p: GamePlayer) {
       if (p.role==='gk'||deadBall!==null) { p.vx*=0.75; p.vy*=0.75; if(Math.abs(p.vx)<0.002)p.vx=0; if(Math.abs(p.vy)<0.002)p.vy=0; return }
       if (p.hasBall) { homeAIWithBall(p); return }
-      const SPD=0.075, SPD_PRESS=0.105
+      const SPD=0.075, SPD_PRESS=0.155
       const awayCarrier=players.find(q=>q.team==='away'&&q.hasBall)
       const homeCarrier=players.find(q=>q.team==='home'&&q.hasBall)
       if (awayCarrier) {
+        // Bug 2: only 2 closest uncontrolled home players press
         const homeOut=players.filter(q=>q.team==='home'&&q.role!=='gk'&&q.id!==controlledId)
         if (!homeOut.length) return
-        const presser=homeOut.reduce((a,b)=>dist2(a.wx,a.wy,ball.wx,ball.wy)<=dist2(b.wx,b.wy,ball.wx,ball.wy)?a:b)
-        if (p.id===presser.id) {
+        const sorted=[...homeOut].sort((a,b)=>dist2(a.wx,a.wy,ball.wx,ball.wy)-dist2(b.wx,b.wy,ball.wx,ball.wy))
+        const presser=sorted[0], presser2=sorted[1]
+        const isPresser=(p.id===presser?.id||p.id===presser2?.id)
+        if (isPresser) {
           const dx=ball.wx-p.wx,dy=ball.wy-p.wy,d=Math.hypot(dx,dy)||1
           p.vx=dx/d*SPD_PRESS; p.vy=dy/d*SPD_PRESS
           if (d<1.8&&Math.random()<0.03) { awayCarrier.hasBall=false; ball.isLoose=true; ball.vx=(Math.random()-0.5)*0.6; ball.vy=(Math.random()-0.5)*0.6 }
         } else {
+          // Bug 2: mark opponent but clamp to MAX_MARK_FOLLOW of base position
           const mark=getManMark(p)
-          if (mark) {
-            const gso=Math.min(4,Math.max(2,(mark.wx-3)*0.08))
-            const tx=mark.wx-gso, ty=mark.wy
+          const distFromBase=dist2(p.wx,p.wy,p.baseWx,p.baseWy)
+          if (mark && distFromBase < MAX_MARK_FOLLOW) {
+            const homeGoalX = awayAttacksRight ? 96 : 3
+            const gso = Math.min(4, Math.max(2, Math.abs(mark.wx - homeGoalX) * 0.08))
+            const rawTx = homeGoalX < 50 ? mark.wx - gso : mark.wx + gso
+            const rawTy = mark.wy
+            // clamp mark target to MAX_MARK_FOLLOW radius around base
+            const mdx=rawTx-p.baseWx, mdy=rawTy-p.baseWy, md=Math.hypot(mdx,mdy)||1
+            const clamp=Math.min(1, MAX_MARK_FOLLOW/md)
+            const tx=p.baseWx+mdx*clamp, ty=p.baseWy+mdy*clamp
             const dx=tx-p.wx,dy=ty-p.wy,d=Math.hypot(dx,dy)||1
             const mspd=d>4?SPD_PRESS:SPD
             if (d>1.0) { p.vx=dx/d*mspd; p.vy=dy/d*mspd } else { p.vx*=0.5; p.vy*=0.5 }
+          } else {
+            // Bug 2: return to shape — must stay within MAX_SHAPE_DIST of base
+            const dx=p.baseWx-p.wx,dy=p.baseWy-p.wy,d=Math.hypot(dx,dy)||1
+            if (d>MAX_SHAPE_DIST*0.5){p.vx=dx/d*SPD;p.vy=dy/d*SPD}else{p.vx*=0.7;p.vy*=0.7}
           }
         }
       } else if (homeCarrier) { homeSupportRun(p, SPD) }
@@ -601,8 +634,10 @@ export default function InGameScreen({ session, updateSession, onNavigate }: Pro
         if (p.id===nearest.id) { const dx=ball.wx-p.wx,dy=ball.wy-p.wy,d=Math.hypot(dx,dy)||1; p.vx=dx/d*SPD_PRESS; p.vy=dy/d*SPD_PRESS }
         else { const dx=p.baseWx-p.wx,dy=p.baseWy-p.wy,d=Math.hypot(dx,dy)||1; if(d>2){p.vx=dx/d*SPD;p.vy=dy/d*SPD}else{p.vx*=0.7;p.vy*=0.7} }
       } else {
+        // Bug 2: enforce shape — glide back to base if too far
         const dx=p.baseWx-p.wx,dy=p.baseWy-p.wy,d=Math.hypot(dx,dy)||1
-        if (d>2){p.vx=dx/d*SPD*0.6;p.vy=dy/d*SPD*0.6}else{p.vx*=0.8;p.vy*=0.8}
+        if (d>MAX_SHAPE_DIST){p.vx=dx/d*SPD;p.vy=dy/d*SPD}
+        else if (d>2){p.vx=dx/d*SPD*0.6;p.vy=dy/d*SPD*0.6}else{p.vx*=0.8;p.vy*=0.8}
       }
     }
 
@@ -611,11 +646,13 @@ export default function InGameScreen({ session, updateSession, onNavigate }: Pro
       const candidates=players.filter(q=>q.team==='away'&&q.id!==p.id&&q.role!=='gk')
       if (!candidates.length) return null
       let best: GamePlayer|null=null, bestScore=-Infinity
+      const pa=p as any
       for (const c of candidates) {
         const forward=awayAttacksRight?(c.wx-p.wx):(p.wx-c.wx)
         const marked=players.some(h=>h.team==='home'&&dist2(h.wx,h.wy,c.wx,c.wy)<3.5)
         const proximity=dist2(p.wx,p.wy,c.wx,c.wy)
-        const s=forward*0.6+(marked?-8:4)-proximity*0.08
+        const returnPenalty=(pa._lastPasser===c.id&&(pa._lastPasserTimer??0)>0)?-20:0
+        const s=forward*0.6+(marked?-8:4)-proximity*0.08+returnPenalty
         if (s>bestScore){bestScore=s;best=c}
       }
       return best
@@ -637,6 +674,7 @@ export default function InGameScreen({ session, updateSession, onNavigate }: Pro
       } else if (passTgt&&passScore>=dribbleScore) {
         const noise=(1-dp.passAcc)*2.5
         kickBallToward(p,passTgt.wx+(Math.random()-0.5)*noise,passTgt.wy+(Math.random()-0.5)*noise,1.25)
+        ;(passTgt as any)._lastPasser=p.id;(passTgt as any)._lastPasserTimer=2000
         p.hasBall=false;ball.isLoose=true;p.animState='kick';p.animTimer=320
       } else {
         p.vx=awayAttacksRight?spd*0.75:-spd*0.75; p.vy=(32-p.wy)*0.025
@@ -649,13 +687,21 @@ export default function InGameScreen({ session, updateSession, onNavigate }: Pro
     }
     function moveToSupportPosition(p: GamePlayer, spd: number) {
       const bx=ball.wx; let tx=0, ty=0
-      switch(p.role) {
-        case 'cf': tx=Math.min(30,bx-20);ty=32;break; case 'lm': tx=Math.min(42,bx-12);ty=19;break
-        case 'rm': tx=Math.min(42,bx-12);ty=45;break; case 'cm': tx=Math.min(50,bx-5); ty=32;break
-        case 'lb': tx=Math.min(62,bx+6); ty=22;break; case 'rb': tx=Math.min(62,bx+6); ty=42;break
-        default: return
+      if (awayAttacksRight) {
+        switch(p.role) {
+          case 'cf': tx=Math.max(70,bx+20);ty=32;break; case 'lm': tx=Math.max(58,bx+12);ty=19;break
+          case 'rm': tx=Math.max(58,bx+12);ty=45;break; case 'cm': tx=Math.max(50,bx+5); ty=32;break
+          case 'lb': tx=Math.max(38,bx-6); ty=22;break; case 'rb': tx=Math.max(38,bx-6); ty=42;break
+          default: return
+        }
+      } else {
+        switch(p.role) {
+          case 'cf': tx=Math.min(30,bx-20);ty=32;break; case 'lm': tx=Math.min(42,bx-12);ty=19;break
+          case 'rm': tx=Math.min(42,bx-12);ty=45;break; case 'cm': tx=Math.min(50,bx-5); ty=32;break
+          case 'lb': tx=Math.min(62,bx+6); ty=22;break; case 'rb': tx=Math.min(62,bx+6); ty=42;break
+          default: return
+        }
       }
-      if (awayAttacksRight) tx=100-tx
       tx=Math.max(5,Math.min(95,tx)); ty=Math.max(4,Math.min(61,ty))
       const dx=tx-p.wx,dy=ty-p.wy,d=Math.hypot(dx,dy)||1
       if (d>1.5){p.vx=dx/d*spd;p.vy=dy/d*spd}else{p.vx*=0.7;p.vy*=0.7}
@@ -684,27 +730,47 @@ export default function InGameScreen({ session, updateSession, onNavigate }: Pro
       const dx=tx-p.wx,dy=ty-p.wy,d=Math.hypot(dx,dy)||1
       if (d>1.5){p.vx=dx/d*spd;p.vy=dy/d*spd}else{p.vx=0;p.vy=0}
     }
+    const GK_MAX_HOLD_MS = 1500  // Bug 1: GK can hold ball at most 1.5s before forced pass
+    function gkPassOut(p: GamePlayer) {
+      const candidates=players.filter(q=>q.team==='away'&&q.role!=='gk')
+      let target: GamePlayer|null=null, bestScore=-Infinity
+      for (const c of candidates) {
+        const marked=players.some(h=>h.team==='home'&&dist2(h.wx,h.wy,c.wx,c.wy)<5)
+        const prox=dist2(p.wx,p.wy,c.wx,c.wy)
+        const safe=awayAttacksRight?(c.wx<75):(c.wx>25)
+        const s=(marked?-25:10)-prox*0.4+(safe?8:0)
+        if (s>bestScore){bestScore=s;target=c}
+      }
+      if (target) {
+        kickBallToward(p, target.wx, target.wy, 1.3)
+      } else {
+        const midX = awayAttacksRight ? 70 : 30
+        kickBallToward(p, midX, 32 + (Math.random()-0.5)*10, 1.8)
+      }
+      p.hasBall=false; ball.isLoose=true; p.animState='kick'; p.animTimer=400
+      p.gkHoldFrames=0; p._gkHolding=false; (p as any)._gkState='distributing'
+    }
     function aiGoalkeeper(p: GamePlayer, dp: typeof DIFF_PARAMS[string], dt: number) {
       const gkX=awayAttacksRight?4:96, gkXMin=awayAttacksRight?3:95, gkXMax=awayAttacksRight?5:97
-      if (p.hasBall) {
-        p.vx=0; p.vy=0; p.wx=Math.max(gkXMin,Math.min(gkXMax,p.wx)); p.animState='save'
-        p.gkHoldFrames=(p.gkHoldFrames||0)+1; p._gkHolding=true
-        if ((p.gkHoldFrames||0)>=120) {
-          p.gkHoldFrames=0; p._gkHolding=false
-          const candidates=players.filter(q=>q.team==='away'&&q.role!=='gk')
-          let target: GamePlayer|null=null, bestScore=-Infinity
-          for (const c of candidates) {
-            const marked=players.some(h=>h.team==='home'&&dist2(h.wx,h.wy,c.wx,c.wy)<5)
-            const prox=dist2(p.wx,p.wy,c.wx,c.wy)
-            const s=(marked?-25:10)-prox*0.4+(c.wx<75?8:0)
-            if (s>bestScore){bestScore=s;target=c}
-          }
-          if (target) kickBallToward(p,target.wx,target.wy,1.3)
-          p.hasBall=false; ball.isLoose=true; p.animState='kick'; p.animTimer=400
-        }
+      const pa=p as any
+      // Bug 1: stay still after pass until kick anim finishes; prevents re-entry into save state
+      if (pa._gkState==='distributing') {
+        p.vx=0; p.vy=0; p.wx=Math.max(gkXMin,Math.min(gkXMax,p.wx))
+        if (p.animTimer<=0) pa._gkState=undefined
         return
       }
-      p.gkHoldFrames=0; p._gkHolding=false
+      if (p.hasBall) {
+        p.vx=0; p.vy=0; p.wx=Math.max(gkXMin,Math.min(gkXMax,p.wx))
+        p._gkHolding=true
+        // Bug 1: track hold time in ms, force pass after GK_MAX_HOLD_MS
+        p.gkHoldFrames=(p.gkHoldFrames||0)+dt
+        if ((p.gkHoldFrames||0) >= GK_MAX_HOLD_MS) { gkPassOut(p); return }
+        // Play save anim for first 600ms, then idle
+        p.animState=(p.gkHoldFrames||0)<600 ? 'save' : 'idle'
+        return
+      }
+      // Bug 1: reset hold counters only — don't touch animState here to avoid oscillation
+      if (p.gkHoldFrames) { p.gkHoldFrames=0; p._gkHolding=false }
       p.wx=Math.max(gkXMin,Math.min(gkXMax,p.wx))
       const shotIncoming=awayAttacksRight?(ball.vx<-0.3&&ball.wx<35):(ball.vx>0.3&&ball.wx>65)
       if (shotIncoming) {
@@ -716,18 +782,27 @@ export default function InGameScreen({ session, updateSession, onNavigate }: Pro
         const dy=targetY-p.wy
         if (Math.abs(dy)>2&&p.animTimer<=0) { p.animState='save'; p.animTimer=900 }
         p.vy=Math.sign(dy)*Math.min(0.22,Math.abs(dy)*0.15)
-        if (dist2(p.wx,p.wy,ball.wx,ball.wy)<2.8&&ball.isLoose) { ball.isLoose=false; p.hasBall=true; ball.lastTouched=p.id; p.gkHoldFrames=0 }
+        // Bug 1: transfer ball ownership to GK on save
+        if (dist2(p.wx,p.wy,ball.wx,ball.wy)<2.8&&ball.isLoose) {
+          ball.isLoose=false; p.hasBall=true; ball.lastTouched=p.id
+          for (const q of players) if (q.id!==p.id) q.hasBall=false
+          p.gkHoldFrames=0
+        }
       } else {
         p._reflexDelay=undefined
         const tgtY=Math.max(GOAL_Y_MIN,Math.min(GOAL_Y_MAX,ball.wy))
         p.vy=(tgtY-p.wy)*0.06; p.vx=0
-        if (ball.isLoose&&dist2(p.wx,p.wy,ball.wx,ball.wy)<2.0) { ball.isLoose=false; p.hasBall=true; ball.lastTouched=p.id; p.gkHoldFrames=0 }
+        if (ball.isLoose&&dist2(p.wx,p.wy,ball.wx,ball.wy)<2.0) {
+          ball.isLoose=false; p.hasBall=true; ball.lastTouched=p.id
+          for (const q of players) if (q.id!==p.id) q.hasBall=false
+          p.gkHoldFrames=0
+        }
       }
     }
     function updateAI(dt: number) {
       const dp=DIFF_PARAMS[difficulty]
       const SPD_RUN=0.12, SPD_WALK=0.065
-      const SPD_PRESS=difficulty==='diff_amateur'?0.13:difficulty==='diff_world_class'?0.145:0.16
+      const SPD_PRESS=difficulty==='diff_amateur'?0.175:difficulty==='diff_world_class'?0.195:0.22
       const awayHasBall=players.some(p=>p.team==='away'&&p.hasBall)
       const gk=getPlayer('away_gk'); if (gk) aiGoalkeeper(gk,dp,dt)
       const outfield=players.filter(p=>p.team==='away'&&p.role!=='gk')
@@ -736,6 +811,7 @@ export default function InGameScreen({ session, updateSession, onNavigate }: Pro
       // AI kickoff
       if (deadBall==='kickoff'&&kickOffTeam==='away') {
         for (const p of outfield) {
+          if (p.hasBall) { p.aiTimer=0; aiDecideWithBall(p,dp,SPD_RUN); continue }
           if (p.role!=='cf') { moveToTactical(p,false,SPD_WALK); continue }
           p.aiTimer-=dt; if (p.aiTimer>0) continue
           const d=dist2(p.wx,p.wy,ball.wx,ball.wy)
@@ -745,7 +821,11 @@ export default function InGameScreen({ session, updateSession, onNavigate }: Pro
             const backward=candidates.filter(c=>awayAttacksRight?c.wx<p.wx:c.wx>p.wx)
             const pool=backward.length?backward:candidates
             const tgt=pool.reduce((best,c)=>dist2(p.wx,p.wy,c.wx,c.wy)<dist2(p.wx,p.wy,best.wx,best.wy)?c:best,pool[0])
-            if (tgt) kickBallToward(p,tgt.wx,tgt.wy,1.1)
+            if (tgt) {
+              kickBallToward(p,tgt.wx,tgt.wy,1.1)
+              ;(tgt as any)._lastPasser=p.id;(tgt as any)._lastPasserTimer=2500
+            }
+            ;(p as any)._kickoffFacingLeft=undefined
             p.hasBall=false; ball.isLoose=true; p.animState='kick'; p.animTimer=380
             deadBall=null; timerRunning=true
           } else {
@@ -757,6 +837,7 @@ export default function InGameScreen({ session, updateSession, onNavigate }: Pro
       }
       const gkHolding=gk?._gkHolding===true
       for (const p of outfield) {
+        if ((p as any)._lastPasserTimer>0) (p as any)._lastPasserTimer-=dt
         if (deadBall!==null&&deadBall!=='throw_in') {
           if (gkHolding) moveToGkBuildUp(p,SPD_WALK); else moveToTactical(p,false,SPD_WALK)
           p.vx*=0.82; p.vy*=0.82; if(Math.abs(p.vx)<0.002)p.vx=0; if(Math.abs(p.vy)<0.002)p.vy=0; continue
@@ -780,7 +861,7 @@ export default function InGameScreen({ session, updateSession, onNavigate }: Pro
           const chaseSpd=ball.isLoose?SPD_RUN:p.id===presserId?SPD_PRESS:SPD_PRESS*0.88
           p.vx=dx/dl*chaseSpd; p.vy=dy/dl*chaseSpd; p.animState='run'
         }
-        p.aiTimer-=dt; if(p.aiTimer>0) continue
+        p.aiTimer-=dt; if(p.aiTimer>0&&!p.hasBall) continue
         p.aiTimer=dp.reaction+Math.random()*80
         if (p.hasBall) { aiDecideWithBall(p,dp,SPD_RUN); continue }
         if (awayHasBall) { moveToSupportPosition(p,SPD_WALK) }
@@ -794,8 +875,8 @@ export default function InGameScreen({ session, updateSession, onNavigate }: Pro
     function aiTackleCheck() {
       if (deadBall!==null) return
       const carrier=players.find(q=>q.hasBall&&q.team==='home'); if(!carrier) return
-      const stealRadius=difficulty==='diff_amateur'?2.8:difficulty==='diff_world_class'?3.2:3.6
-      const perFrameChance=difficulty==='diff_amateur'?0.030:difficulty==='diff_world_class'?0.055:0.085
+      const stealRadius=difficulty==='diff_amateur'?4.8:difficulty==='diff_world_class'?5.2:5.8
+      const perFrameChance=difficulty==='diff_amateur'?0.055:difficulty==='diff_world_class'?0.08:0.11
       for (const p of players.filter(q=>q.team==='away'&&q.role!=='gk')) {
         const d=dist2(p.wx,p.wy,carrier.wx,carrier.wy)
         if (d<stealRadius) {
@@ -809,7 +890,8 @@ export default function InGameScreen({ session, updateSession, onNavigate }: Pro
           }
           if (Math.random()<perFrameChance*dirMod) {
             p.animState='slide'; p.animTimer=480; carrier.hasBall=false; ball.isLoose=true
-            ball.vx=-0.4-Math.random()*0.5; ball.vy=(Math.random()-0.5)*0.8; return
+            const tackleDir=awayAttacksRight?1:-1
+            ball.vx=(0.4+Math.random()*0.5)*tackleDir; ball.vy=(Math.random()-0.5)*0.8; return
           }
         }
       }
@@ -868,24 +950,89 @@ export default function InGameScreen({ session, updateSession, onNavigate }: Pro
         }
         if (p.hasBall) {
           const spd=Math.hypot(p.vx,p.vy)
-          if (spd>0.015) { p._facingDx=p.vx; p._facingDy=p.vy; ball.angle+=spd*2.8 }
+          if (spd>0.015) { p._facingDx=p.vx; p._facingDy=p.vy }
           const fdx=p._facingDx??(p._facingLeft?-1:1), fdy=p._facingDy??0
           const fl=Math.hypot(fdx,fdy)||1
           ball.wx=p.wx+(fdx/fl)*1.0; ball.wy=p.wy+(fdy/fl)*0.6
           ball.vx=0; ball.vy=0
           if (p.team==='home') possession[0]++; else possession[1]++
-          if (p.team==='home'&&!p.id) controlledId=p.id
+          // Bug 1+2: auto-switch to whoever on home team picks up ball (includes GK)
+          if (p.team==='home') controlledId=p.id
         }
       }
       if (deadBall===null) {
         const ctrl=getPlayer(controlledId)
-        const homePlayers=players.filter(p=>p.team==='home'&&p.role!=='gk')
+        // Bug 2: include GK in candidate pool when GK has ball so control can switch to them
+        const homePlayers=players.filter(p=>p.team==='home'&&(p.role!=='gk'||p.hasBall))
         if (homePlayers.length) {
           const nearest=homePlayers.reduce((a,b)=>dist2(a.wx,a.wy,ball.wx,ball.wy)<dist2(b.wx,b.wy,ball.wx,ball.wy)?a:b)
           const awayHasBall=players.some(p=>p.team==='away'&&p.hasBall)
           const switchThreshold=awayHasBall?10:15
           if (!ctrl||dist2(ctrl.wx,ctrl.wy,ball.wx,ball.wy)>switchThreshold) {
             if (!ctrl?.hasBall) controlledId=nearest.id
+          }
+        }
+      }
+    }
+
+    // Bug 3: boundary margin + velocity reflection + stuck detection
+    const PITCH_MARGIN = 1.5  // world units inset from edge
+    const STUCK_DIST   = 0.6  // world units — less than this in 2s = stuck
+    const STUCK_MS     = 2000
+    function enforceBoundaries(dt: number) {
+      for (const p of players) {
+        // Hard clamp with margin
+        const nx=Math.max(PITCH_MARGIN,Math.min(100-PITCH_MARGIN,p.wx))
+        const ny=Math.max(PITCH_MARGIN,Math.min(65-PITCH_MARGIN,p.wy))
+        if (nx!==p.wx||ny!==p.wy) {
+          // Reflect velocity component pushing out of bounds
+          if (p.wx<PITCH_MARGIN&&p.vx<0) p.vx*=-0.5
+          if (p.wx>100-PITCH_MARGIN&&p.vx>0) p.vx*=-0.5
+          if (p.wy<PITCH_MARGIN&&p.vy<0) p.vy*=-0.5
+          if (p.wy>65-PITCH_MARGIN&&p.vy>0) p.vy*=-0.5
+          p.wx=nx; p.wy=ny
+        }
+        // Stuck detection: only for AI (not controlled, not ball carrier)
+        if (p.hasBall||p.id===controlledId) { (p as any)._stuckMs=0; (p as any)._stuckWx=p.wx; (p as any)._stuckWy=p.wy; continue }
+        const pa = p as any
+        // Bug 3: gate first check so undefined _stuckWx never triggers false positive teleport
+        if (pa._stuckWx===undefined) { pa._stuckWx=p.wx; pa._stuckWy=p.wy; pa._stuckMs=0 }
+        else {
+          pa._stuckMs=(pa._stuckMs||0)+dt
+          if (pa._stuckMs>=STUCK_MS) {
+            const movedX=Math.abs(p.wx-pa._stuckWx), movedY=Math.abs(p.wy-pa._stuckWy)
+            if (movedX+movedY < STUCK_DIST) {
+              p.wx=Math.max(PITCH_MARGIN,Math.min(100-PITCH_MARGIN,p.baseWx))
+              p.wy=Math.max(PITCH_MARGIN,Math.min(65-PITCH_MARGIN,p.baseWy))
+              p.vx=0; p.vy=0
+            }
+            pa._stuckMs=0; pa._stuckWx=p.wx; pa._stuckWy=p.wy
+          }
+        }
+      }
+    }
+
+    // Bug 3+4: push overlapping players apart by position only (never touch vx/vy so animState stays stable)
+    function separatePlayers() {
+      const MIN_SEP = 3.0  // world units (~21px at typical scale)
+      for (let i = 0; i < players.length; i++) {
+        for (let j = i+1; j < players.length; j++) {
+          const a=players[i], b=players[j]
+          const dx=b.wx-a.wx, dy=b.wy-a.wy
+          const d=Math.hypot(dx,dy)
+          if (d>0&&d<MIN_SEP) {
+            const overlap=MIN_SEP-d, nx=dx/d, ny=dy/d
+            if (a.hasBall) {
+              b.wx=Math.max(0,Math.min(100,b.wx+nx*overlap))
+              b.wy=Math.max(0,Math.min(65,b.wy+ny*overlap))
+            } else if (b.hasBall) {
+              a.wx=Math.max(0,Math.min(100,a.wx-nx*overlap))
+              a.wy=Math.max(0,Math.min(65,a.wy-ny*overlap))
+            } else {
+              const half=overlap*0.5
+              a.wx=Math.max(0,Math.min(100,a.wx-nx*half)); a.wy=Math.max(0,Math.min(65,a.wy-ny*half))
+              b.wx=Math.max(0,Math.min(100,b.wx+nx*half)); b.wy=Math.max(0,Math.min(65,b.wy+ny*half))
+            }
           }
         }
       }
@@ -924,15 +1071,11 @@ export default function InGameScreen({ session, updateSession, onNavigate }: Pro
         const kickingCF=getPlayer(kickOffTeam+'_cf')
         const nonKickTeam=kickOffTeam==='home'?'away':'home'
         const nonKickingCF=getPlayer(nonKickTeam+'_cf')
-        // Place kicking CF behind ball (between ball and own goal)
         const kickingAttacksRight=kickOffTeam==='home'?!awayAttacksRight:awayAttacksRight
-        if (kickingCF) { kickingCF.wx=kickingAttacksRight?48:52; kickingCF.wy=32 }
-        // Place non-kicking CF outside center circle on their own half
+        if (kickingCF) { kickingCF.wx=kickingAttacksRight?54:46; kickingCF.wy=32;(kickingCF as any)._kickoffFacingLeft=kickingAttacksRight }
         if (nonKickingCF) {
           const nonKickAttacksRight=kickOffTeam==='home'?awayAttacksRight:!awayAttacksRight
-          nonKickingCF.wx=nonKickAttacksRight?48:52; nonKickingCF.wy=32
-          // Push them further back — must be outside center circle (r≈8.7 world units)
-          nonKickingCF.wx=nonKickAttacksRight?41:59
+          nonKickingCF.wx=nonKickAttacksRight?40:60; nonKickingCF.wy=32;(nonKickingCF as any)._kickoffFacingLeft=undefined
         }
         ball.isLoose=true
         if (kickOffTeam==='home') { controlledId=kickingCF?.id??'home_cf' }
@@ -943,13 +1086,15 @@ export default function InGameScreen({ session, updateSession, onNavigate }: Pro
       }
       if (deadBall==='goal_kick'&&deadBallTimer<=0) {
         const awayGk=getPlayer('away_gk')
-        if (ball.wx>50&&awayGk) {
+        const awayKickIsOnRight = awayAttacksRight ? (ball.wx>50) : (ball.wx<=50)
+        if (awayKickIsOnRight && awayGk) {
           const def=players.filter(p=>p.team==='away'&&(p.role==='lb'||p.role==='rb'||p.role==='cm'))
             .reduce((a,b)=>dist2(awayGk.wx,awayGk.wy,a.wx,a.wy)<dist2(awayGk.wx,awayGk.wy,b.wx,b.wy)?a:b)
           if (def) kickBallToward(awayGk,def.wx,def.wy,1.5)
           deadBall=null; timerRunning=true
+        } else if (!awayKickIsOnRight) {
+          deadBall=null; timerRunning=true
         }
-        if (ball.wx<=50) { deadBall=null; timerRunning=true }
       }
       if (deadBall==='halftime'&&deadBallTimer<=0) {
         updateSession({ homeScore:score[0], awayScore:score[1], half:2 })
@@ -979,7 +1124,8 @@ export default function InGameScreen({ session, updateSession, onNavigate }: Pro
         const pool=backward.length?backward:outfield
         const t=pool.reduce((a,b)=>dist2(ctrl.wx,ctrl.wy,a.wx,a.wy)<dist2(ctrl.wx,ctrl.wy,b.wx,b.wy)?a:b)
         kickBallToward(ctrl,t.wx,t.wy,1.2)
-        ctrl.animState='kick'; ctrl.animTimer=320
+        ctrl.animState='kick'; ctrl.animTimer=320;
+        (ctrl as any)._kickoffFacingLeft=undefined
         controlledId=t.id  // hand control to the receiver
         deadBall=null; timerRunning=true; return
       }
@@ -1000,6 +1146,8 @@ export default function InGameScreen({ session, updateSession, onNavigate }: Pro
       const best=pool.reduce((a,b)=>dist2(ctrl.wx,ctrl.wy,a.wx,a.wy)<dist2(ctrl.wx,ctrl.wy,b.wx,b.wy)?a:b)
       kickBallToward(ctrl,best.wx,best.wy,1.3)
       ctrl.hasBall=false; ball.isLoose=true; ctrl.animState='kick'; ctrl.animTimer=320
+      // Bug 1: immediately hand control to pass receiver so ring is never lost
+      controlledId=best.id
     }
     function handleBtnBRelease() {
       if (pauseOpen) return
@@ -1010,13 +1158,24 @@ export default function InGameScreen({ session, updateSession, onNavigate }: Pro
         const oppGoalX=homeAttacksRight?97:3
         const inRange=homeAttacksRight?(ctrl.wx>65):(ctrl.wx<35)
         if (ctrl.role==='gk') {
-          const fwd=players.filter(p=>p.team==='home'&&p.role!=='gk')
-            .reduce((a,b)=>(homeAttacksRight?b.wx>a.wx:b.wx<a.wx)?b:a)
+          const outfield=players.filter(p=>p.team==='home'&&p.role!=='gk')
+          const fwd=outfield.reduce((a,b)=>(homeAttacksRight?b.wx>a.wx:b.wx<a.wx)?b:a)
           kickBallToward(ctrl,fwd?fwd.wx:55,fwd?fwd.wy:32,2.0+power*0.5)
+          // Bug 1+2: hand control to the player the GK kicked to
+          if (fwd) controlledId=fwd.id
         } else if (inRange) {
           statsShots[0]++
           kickBallToward(ctrl,oppGoalX,32,1.8+power*0.7)
-        } else { kickBallToward(ctrl,ctrl.wx+(homeAttacksRight?25:-25),ctrl.wy,1.5) }
+        } else {
+          // Bug 1: pass long — switch to nearest home player to landing zone
+          const landX=ctrl.wx+(homeAttacksRight?25:-25)
+          const landTargets=players.filter(p=>p.team==='home'&&p.role!=='gk'&&p.id!==ctrl.id)
+          if (landTargets.length) {
+            const recv=landTargets.reduce((a,b)=>dist2(a.wx,a.wy,landX,ctrl.wy)<dist2(b.wx,b.wy,landX,ctrl.wy)?a:b)
+            controlledId=recv.id
+          }
+          kickBallToward(ctrl,landX,ctrl.wy,1.5)
+        }
         ctrl.hasBall=false; ball.isLoose=true; ctrl.animState='kick'; ctrl.animTimer=380
       } else { handleTackle(ctrl) }
     }
@@ -1172,7 +1331,9 @@ export default function InGameScreen({ session, updateSession, onNavigate }: Pro
         ctx.ellipse(sc.x,sc.y,dW*0.42,dH*0.07,0,0,Math.PI*2); ctx.fill()
         const img = getSprite(teamCode)
         ctx.imageSmoothingEnabled = false
-        if (p._facingLeft) {
+        const kfl = (p as any)._kickoffFacingLeft
+        const isFacingLeft = (deadBall==='kickoff'&&kfl!==undefined) ? kfl : p._facingLeft
+        if (isFacingLeft) {
           ctx.save(); ctx.translate(sc.x+dW/2, drawY); ctx.scale(-1,1)
           ctx.drawImage(img, srcX, srcY, SS_VIS_W, SS_VIS_H, 0, 0, dW, dH)
           ctx.restore()
@@ -1216,8 +1377,14 @@ export default function InGameScreen({ session, updateSession, onNavigate }: Pro
       ctx.beginPath(); ctx.roundRect(sbX - 6, sbY - 4, sbDisplayW + 12, sbDisplayH + 8, 4); ctx.fill()
       ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'
       ctx.drawImage(sbCanvas, sbX, sbY, sbDisplayW, sbDisplayH)
-      ctx.fillStyle = 'rgba(255,255,255,0.25)'; ctx.font = '10px monospace'
-      ctx.textAlign = 'right'; ctx.fillText('ESC pause', cw - 6, 16)
+      const pb = pauseBtnZone()
+      ctx.fillStyle = 'rgba(0,0,0,0.55)'
+      ctx.fillRect(pb.x, pb.y, pb.w, pb.h)
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.5
+      ctx.strokeRect(pb.x, pb.y, pb.w, pb.h)
+      ctx.fillStyle = '#fff'; ctx.font = `bold ${Math.round(pb.h * 0.55)}px monospace`
+      ctx.textAlign = 'center'
+      ctx.fillText('II', pb.x + pb.w / 2, pb.y + pb.h * 0.72)
     }
     function drawControls() {
       const SCALE=getScale(), cw=canvas.width, ch=canvas.height
@@ -1261,23 +1428,37 @@ export default function InGameScreen({ session, updateSession, onNavigate }: Pro
       ctx.fillText('GOAL!',canvas.width/2,canvas.height/2-20*SCALE)
       ctx.font=`${14*SCALE}px monospace`; ctx.fillText(team,canvas.width/2,canvas.height/2+10*SCALE)
     }
+    function drawRetroHeader(label: string, cy: number, SCALE: number, cw: number) {
+      const lineColor='#CC3300', textColor='#FFFFFF'
+      ctx.font=`bold ${11*SCALE}px 'Press Start 2P', monospace`
+      ctx.textAlign='center'
+      const tw=ctx.measureText(label).width
+      const lineY=cy+4*SCALE, gap=16*SCALE
+      ctx.strokeStyle=lineColor; ctx.lineWidth=2*SCALE
+      ctx.beginPath(); ctx.moveTo(cw/2-tw/2-gap,lineY); ctx.lineTo(cw*0.1,lineY); ctx.stroke()
+      ctx.beginPath(); ctx.moveTo(cw/2+tw/2+gap,lineY); ctx.lineTo(cw*0.9,lineY); ctx.stroke()
+      ctx.fillStyle=textColor; ctx.fillText(label,cw/2,cy)
+    }
+    function drawRetroButton(label: string, bx: number, by: number, bw: number, bh: number, SCALE: number) {
+      ctx.fillStyle='#000000'; ctx.fillRect(bx,by,bw,bh)
+      ctx.strokeStyle='#CC3300'; ctx.lineWidth=3*SCALE; ctx.strokeRect(bx,by,bw,bh)
+      ctx.fillStyle='#FFFFFF'
+      ctx.font=`${8*SCALE}px 'Press Start 2P', monospace`
+      ctx.textAlign='center'; ctx.letterSpacing=`${0.08*8*SCALE}px`
+      ctx.fillText(label,bx+bw/2,by+bh*0.64)
+      ctx.letterSpacing='0px'
+    }
     function drawPauseMenu() {
       const SCALE=getScale(), cw=canvas.width, ch=canvas.height
-      ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillRect(0,0,cw,ch)
-      ctx.fillStyle='#fff'; ctx.font=`bold ${16*SCALE}px monospace`; ctx.textAlign='center'
-      ctx.fillText('PAUSED',cw/2,ch/2-90*SCALE)
-      const bw=180*SCALE, bh=44*SCALE, bx=cw/2-bw/2
+      ctx.fillStyle='rgba(0,0,0,0.88)'; ctx.fillRect(0,0,cw,ch)
+      drawRetroHeader('PAUSED',ch/2-90*SCALE,SCALE,cw)
+      const bw=200*SCALE, bh=44*SCALE, bx=cw/2-bw/2
       const btns=[
-        {y:ch/2-70*SCALE,label:'RESUME'},
-        {y:ch/2-15*SCALE,label:'RESTART'},
-        {y:ch/2+40*SCALE,label:'QUIT'},
+        {y:ch/2-60*SCALE,label:'RESUME'},
+        {y:ch/2-5*SCALE, label:'RESTART'},
+        {y:ch/2+50*SCALE,label:'QUIT'},
       ]
-      for (const b of btns) {
-        ctx.fillStyle='rgba(255,255,255,0.15)'; ctx.fillRect(bx,b.y,bw,bh)
-        ctx.strokeStyle='#fff'; ctx.lineWidth=1; ctx.strokeRect(bx,b.y,bw,bh)
-        ctx.fillStyle='#fff'; ctx.font=`bold ${12*SCALE}px monospace`
-        ctx.fillText(b.label,cw/2,b.y+bh*0.65)
-      }
+      for (const b of btns) drawRetroButton(b.label,bx,b.y,bw,bh,SCALE)
     }
     function drawDeadBallOverlay() {
       const SCALE=getScale(), cw=canvas.width, ch=canvas.height
@@ -1286,11 +1467,17 @@ export default function InGameScreen({ session, updateSession, onNavigate }: Pro
         ctx.fillText('TAP A TO KICK OFF',cw/2,ch-130*SCALE)
       }
       if (deadBall==='halftime') {
-        ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillRect(0,0,cw,ch)
-        ctx.fillStyle='#fff'; ctx.font=`bold ${20*SCALE}px monospace`; ctx.textAlign='center'
-        ctx.fillText('HALF TIME',cw/2,ch/2-20*SCALE)
-        ctx.font=`${12*SCALE}px monospace`; ctx.fillText(`${score[0]} – ${score[1]}`,cw/2,ch/2+10*SCALE)
-        ctx.fillStyle='#aaa'; ctx.font=`${9*SCALE}px monospace`; ctx.fillText('SIDES SWITCH',cw/2,ch/2+30*SCALE)
+        ctx.fillStyle='#000000'; ctx.fillRect(0,0,cw,ch)
+        drawRetroHeader('HALF TIME',ch/2-60*SCALE,SCALE,cw)
+        // Score — white, large
+        ctx.fillStyle='#FFFFFF'; ctx.font=`bold ${30*SCALE}px 'Press Start 2P', monospace`
+        ctx.textAlign='center'; ctx.fillText(`${score[0]}  –  ${score[1]}`,cw/2,ch/2)
+        // Half label — teal accent
+        ctx.fillStyle='#00BBAA'; ctx.font=`${8*SCALE}px 'Press Start 2P', monospace`
+        ctx.fillText('SECOND HALF',cw/2,ch/2+28*SCALE)
+        // Sides switch note
+        ctx.fillStyle='#FFFFFF'; ctx.font=`${7*SCALE}px 'Press Start 2P', monospace`
+        ctx.fillText('SIDES SWITCH',cw/2,ch/2+48*SCALE)
       }
       if (deadBall==='throw_in') {
         ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.font=`bold ${9*SCALE}px monospace`; ctx.textAlign='center'
@@ -1317,6 +1504,8 @@ export default function InGameScreen({ session, updateSession, onNavigate }: Pro
       if (deadBall!=='halftime'&&deadBall!=='fulltime') {
         updateBall(dt)
         updatePlayers(dt)
+        enforceBoundaries(dt)
+        separatePlayers()
         if (deadBall===null||(deadBall==='kickoff'&&kickOffTeam==='away')) updateAI(dt)
         aiTackleCheck()
       }

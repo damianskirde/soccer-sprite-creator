@@ -9,6 +9,7 @@ import MatchOverviewScreen from './screens/MatchOverviewScreen'
 import InGameScreen from './screens/InGameScreen'
 import HalftimeScreen from './screens/HalftimeScreen'
 import FullTimeScreen from './screens/FullTimeScreen'
+import ExhibitionScreen from './screens/ExhibitionScreen'
 
 interface Props {
   onExit: () => void
@@ -29,6 +30,7 @@ export default function GameApp({ onExit }: Props) {
 
   function navigate(next: ScreenId) {
     if (next === 'fixtures_loading') setFixtureStatus('loading')
+    if (next === 'exhibition') setSession(prev => ({ ...prev, mode: 'exhibition' }))
     setScreen(next)
   }
 
@@ -119,6 +121,10 @@ export default function GameApp({ onExit }: Props) {
           onSelectFixture={onSelectFixture}
           updateSession={updateSession}
         />
+      )}
+
+      {screen === 'exhibition' && (
+        <ExhibitionScreen onNavigate={navigate} />
       )}
 
       {screen === 'team_select' && (
